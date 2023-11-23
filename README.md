@@ -18,7 +18,7 @@ The original project was too weak and had some design flaws, I decided to improv
 1. [Mini speaker](https://www.adafruit.com/product/3923)
 1. [Lithium battery](https://www.adafruit.com/product/1781)
 1. [Mini switch](https://www.adafruit.com/product/805)
-1. [3D printed parts]()
+1. [3D printed parts](https://www.thingiverse.com/thing:6330719)
 1. Some wires
 
 ## Auto deploy
