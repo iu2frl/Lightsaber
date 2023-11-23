@@ -1,0 +1,30 @@
+// AUTOMATICALLY GENERATED FILE. PLEASE DO NOT MODIFY IT MANUALLY
+//
+// PIO Unified Debugger
+//
+// Documentation: https://docs.platformio.org/page/plus/debugging.html
+// Configuration: https://docs.platformio.org/page/projectconf/section_env_debug.html
+
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "LINUX Full deploy to Pico",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/venv/bin/python",
+            "args": ["${workspaceFolder}/deploy.py"],
+            "externalConsole": false,
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "name": "LINUX Python-only deploy to Pico",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/venv/bin/python",
+            "args": ["${workspaceFolder}/deploy.py", "-p"],
+            "externalConsole": false,
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

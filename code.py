@@ -30,7 +30,7 @@ SABER_COLOR = 3
 CLASH_COLOR = 6
 NUM_PIXELS = 124
 
-def init_power_output(status: bool) -> DigitalInOut:
+def init_power_output() -> DigitalInOut:
     """Command the 5V power output (turned off to save battery)"""
     ext_power = DigitalInOut(board.EXTERNAL_POWER)
     ext_power.direction = Direction.OUTPUT
@@ -90,16 +90,16 @@ def init_accelerometer() -> adafruit_lis3dh.LIS3DH_I2C:
 
 def init_button_leds() -> list[pwmio.PWMOut]:
     """Initialize RGB led in the main button"""
-    red_led = pwmio.PWMOut(board.D10)
-    green_led = pwmio.PWMOut(board.D11)
-    blue_led = pwmio.PWMOut(board.D12)
-    return red_led, green_led, blue_led
+    tmp_red_led = pwmio.PWMOut(board.D10)
+    tmp_green_led = pwmio.PWMOut(board.D11)
+    tmp_blue_led = pwmio.PWMOut(board.D12)
+    return tmp_red_led, tmp_green_led, tmp_blue_led
 
-def set_rgb_led(color):
+def set_rgb_led(color, in_red_led, in_green_led, in_blue_led):
     """Convert from 0-255 (neopixel range) to 65535-0 (pwm range)"""
-    red_led.duty_cycle = int(simpleio.map_range(color[0], 0, 255, 65535, 0))
-    green_led.duty_cycle = int(simpleio.map_range(color[1], 0, 255, 65535, 0))
-    blue_led.duty_cycle = int(simpleio.map_range(color[2], 0, 255, 65535, 0))
+    in_red_led.duty_cycle = int(simpleio.map_range(color[0], 0, 255, 65535, 0))
+    in_green_led.duty_cycle = int(simpleio.map_range(color[1], 0, 255, 65535, 0))
+    in_blue_led.duty_cycle = int(simpleio.map_range(color[2], 0, 255, 65535, 0))
 
 # Code initialization
 if __name__ == "__main__":
@@ -108,12 +108,12 @@ if __name__ == "__main__":
     # Hardware initialization
     wav_list = load_wavs("./sounds")
     switch = init_button()
-    external_power = init_power_output(True)
+    external_power = init_power_output()
     pixels = init_neopixel()
     audio = init_audio()
     lis3dh = init_accelerometer()
     red_led, green_led, blue_led = init_button_leds()
-    set_rgb_led(COLORS[SABER_COLOR])
+    set_rgb_led(COLORS[SABER_COLOR], red_led, green_led, blue_led)
     # Main state machine
     # 0: startup
     # 1: read status
@@ -127,11 +127,9 @@ if __name__ == "__main__":
         switch.update()
         # startup
         if MODE == 0:
-            print(MODE)
             play_wav(wav_list[0], audio, loop=False)
             for i in range(NUM_PIXELS):
                 pixels[i] = COLORS[SABER_COLOR]
-                pixels.show()
             play_wav(wav_list[1], audio, loop=True)
             MODE = 1
         # default
@@ -154,9 +152,7 @@ if __name__ == "__main__":
             play_wav(wav_list[random.randint(3, 10)], audio, loop=False)
             while audio.playing:
                 pixels.fill(WHITE)
-                pixels.show()
             pixels.fill(COLORS[SABER_COLOR])
-            pixels.show()
             play_wav(wav_list[1], audio, loop=True)
             MODE = 1
         elif MODE == 11:
@@ -164,18 +160,15 @@ if __name__ == "__main__":
             play_wav(wav_list[random.randint(11, 18)], audio, loop=False)
             while audio.playing:
                 pixels.fill(COLORS[SABER_COLOR])
-                pixels.show()
             pixels.fill(COLORS[SABER_COLOR])
-            pixels.show()
             play_wav(wav_list[1], audio, loop=True)
             MODE = 1
         # turn off
         elif MODE == 3:
             audio.stop()
             play_wav(wav_list[2], audio, loop=False)
-            for i in range(99, 0, -1):
-                pixels[i] = (0, 0, 0)
-                pixels.show()
+            for i in range(NUM_PIXELS):
+                pixels[NUM_PIXELS - 1 - i] = (0, 0, 0)
             time.sleep(1)
             external_power.value = False
             MODE = 4
@@ -189,11 +182,9 @@ if __name__ == "__main__":
             if switch.short_count == 1:
                 SABER_COLOR = (SABER_COLOR + 1) % 6
                 pixels.fill(COLORS[SABER_COLOR])
-                pixels.show()
-                set_rgb_led(COLORS[SABER_COLOR])
+                set_rgb_led(COLORS[SABER_COLOR], red_led, green_led, blue_led)
             if switch.long_press:
                 play_wav(wav_list[1], audio, loop=True)
                 pixels.fill(COLORS[SABER_COLOR])
-                pixels.show()
-                set_rgb_led(COLORS[SABER_COLOR])
+                set_rgb_led(COLORS[SABER_COLOR], red_led, green_led, blue_led)
                 MODE = 1
