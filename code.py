@@ -14,6 +14,7 @@ from digitalio import DigitalInOut, Direction, Pull
 import neopixel
 import adafruit_lis3dh
 import simpleio
+import math
 
 # CUSTOMIZE SENSITIVITY HERE: smaller numbers = more sensitive to motion
 HIT_THRESHOLD = 120
@@ -26,7 +27,6 @@ BLUE = (0, 0, 255)
 PURPLE = (125, 0, 255)
 WHITE = (255, 255, 255)
 COLORS = [RED, YELLOW, GREEN, CYAN, BLUE, PURPLE, WHITE]
-SABER_COLOR = 3
 CLASH_COLOR = 6
 NUM_PIXELS = 124
 
@@ -46,7 +46,7 @@ def load_wavs(wav_path: str) -> list[str]:
     wavs.sort()
     return wavs
 
-def init_audio():
+def init_audio() -> audiobusio.I2SOut:
     """Initialize audio module"""
     return audiobusio.I2SOut(board.I2S_BIT_CLOCK, board.I2S_WORD_SELECT, board.I2S_DATA)
 
@@ -85,6 +85,7 @@ def init_accelerometer() -> adafruit_lis3dh.LIS3DH_I2C:
     tmp_lis3dh = adafruit_lis3dh.LIS3DH_I2C(tmp_i2c, int1=tmp_int1)
     # Accelerometer Range (can be 2_G, 4_G, 8_G, 16_G)
     tmp_lis3dh.range = adafruit_lis3dh.RANGE_2_G
+    
     tmp_lis3dh.set_tap(1, HIT_THRESHOLD)
     return tmp_lis3dh
 
@@ -101,10 +102,28 @@ def set_rgb_led(color, in_red_led, in_green_led, in_blue_led):
     in_green_led.duty_cycle = int(simpleio.map_range(color[1], 0, 255, 65535, 0))
     in_blue_led.duty_cycle = int(simpleio.map_range(color[2], 0, 255, 65535, 0))
 
-# Code initialization
-if __name__ == "__main__":
+def read_gesture(lis3dh, last_x, last_y, last_z):
+    """Read gestures from the sword"""
+    x, y, z = lis3dh.acceleration
+    x = abs(x / 9.81)
+    y = abs(y / 9.81)
+    z = abs(z / 9.81)
+    if last_x > 0 and last_y > 0 and last_z > 0:
+        dx = abs(last_x - x)
+        dy = abs(last_y - y)
+        dz = abs(last_z - z)
+        accel_total = dx*dy*1000
+        #print(accel_total)
+        if lis3dh.tapped:
+            return 10, 0, 0, 0
+        elif accel_total >= 1:
+            return 11, 0, 0, 0
+    return 1, x, y, z
+
+def main(saber_color: int = 0):
+    """Main program code"""
     # Local variables initialization
-    MODE = 0
+    mode = 4
     # Hardware initialization
     wav_list = load_wavs("./sounds")
     switch = init_button()
@@ -113,7 +132,12 @@ if __name__ == "__main__":
     audio = init_audio()
     lis3dh = init_accelerometer()
     red_led, green_led, blue_led = init_button_leds()
-    set_rgb_led(COLORS[SABER_COLOR], red_led, green_led, blue_led)
+    set_rgb_led(COLORS[saber_color], red_led, green_led, blue_led)
+    # Temporary variables
+    last_x = 0.0
+    last_y = 0.0
+    last_z = 0.0
+    idling = 0
     # Main state machine
     # 0: startup
     # 1: read status
@@ -126,65 +150,79 @@ if __name__ == "__main__":
     while True:
         switch.update()
         # startup
-        if MODE == 0:
+        if mode == 0:
+            set_rgb_led(COLORS[saber_color], red_led, green_led, blue_led)
             play_wav(wav_list[0], audio, loop=False)
             for i in range(NUM_PIXELS):
-                pixels[i] = COLORS[SABER_COLOR]
+                pixels[i] = COLORS[saber_color]
             play_wav(wav_list[1], audio, loop=True)
-            MODE = 1
+            mode = 1
         # default
-        elif MODE == 1:
-            x, y, z = lis3dh.acceleration
-            accel_total = x * x + z * z
-            if lis3dh.tapped:
-                MODE = 10
-            elif accel_total >= SWING_THRESHOLD:
-                MODE = 11
+        elif mode == 1:
             if switch.short_count == 1:
-                MODE = 3
-            if switch.long_press:
+                mode = 3
+            elif switch.long_press:
                 audio.stop()
                 play_wav(wav_list[19], audio, loop=True)
-                MODE = 5
+                mode = 5
+            else:
+                mode, last_x, last_y, last_z = read_gesture(lis3dh, last_x, last_y, last_z)
+            # if lis3dh.tapped:
+            #      MODE = 10
+            # elif accel_total >= SWING_THRESHOLD:
+            #     MODE = 11
         # clash or move
-        elif MODE == 10:
+        elif mode == 10:
             audio.stop()
             play_wav(wav_list[random.randint(3, 10)], audio, loop=False)
             while audio.playing:
                 pixels.fill(WHITE)
-            pixels.fill(COLORS[SABER_COLOR])
+            pixels.fill(COLORS[saber_color])
             play_wav(wav_list[1], audio, loop=True)
-            MODE = 1
-        elif MODE == 11:
+            mode = 1
+        elif mode == 11:
             audio.stop()
             play_wav(wav_list[random.randint(11, 18)], audio, loop=False)
             while audio.playing:
-                pixels.fill(COLORS[SABER_COLOR])
-            pixels.fill(COLORS[SABER_COLOR])
+                pixels.fill(COLORS[saber_color])
+            pixels.fill(COLORS[saber_color])
             play_wav(wav_list[1], audio, loop=True)
-            MODE = 1
+            mode = 1
         # turn off
-        elif MODE == 3:
+        elif mode == 3:
             audio.stop()
             play_wav(wav_list[2], audio, loop=False)
             for i in range(NUM_PIXELS):
                 pixels[NUM_PIXELS - 1 - i] = (0, 0, 0)
-            time.sleep(1)
             external_power.value = False
-            MODE = 4
+            mode = 4
         # go to startup from off
-        elif MODE == 4:
-            if switch.short_count == 1:
+        elif mode == 4:
+            if switch.short_count >= 1:
                 external_power.value = True
-                MODE = 0
+                mode = 0
+            else:
+                if idling > 3000:
+                    idling = 0
+                elif idling > 2900:
+                    set_rgb_led(COLORS[saber_color], red_led, green_led, blue_led)
+                else:
+                    set_rgb_led((0,0,0), red_led, green_led, blue_led)
+                idling += 1
+                external_power.value = False
         # change color
-        elif MODE == 5:
-            if switch.short_count == 1:
-                SABER_COLOR = (SABER_COLOR + 1) % 6
-                pixels.fill(COLORS[SABER_COLOR])
-                set_rgb_led(COLORS[SABER_COLOR], red_led, green_led, blue_led)
+        elif mode == 5:
+            if switch.short_count >= 1:
+                saber_color = (saber_color + 1) % 6
+                pixels.fill(COLORS[saber_color])
+                set_rgb_led(COLORS[saber_color], red_led, green_led, blue_led)
             if switch.long_press:
                 play_wav(wav_list[1], audio, loop=True)
-                pixels.fill(COLORS[SABER_COLOR])
-                set_rgb_led(COLORS[SABER_COLOR], red_led, green_led, blue_led)
-                MODE = 1
+                pixels.fill(COLORS[saber_color])
+                set_rgb_led(COLORS[saber_color], red_led, green_led, blue_led)
+                mode = 1
+
+
+# Code initialization
+if __name__ == "__main__":
+    main()

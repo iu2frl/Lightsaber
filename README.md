@@ -1,6 +1,6 @@
-# Lightsaber
+# IU2FRL Lightsaber
 
-Python code of my Lightsaber
+This repo contains the python code of my lightsaber
 
 ## Original project
 
