@@ -18,7 +18,7 @@ import math
 
 # CUSTOMIZE SENSITIVITY HERE: smaller numbers = more sensitive to motion
 HIT_THRESHOLD = 120
-SWING_THRESHOLD = 130
+SWING_THRESHOLD = 100
 RED = (255, 0, 0)
 YELLOW = (125, 255, 0)
 GREEN = (0, 255, 0)
@@ -149,31 +149,35 @@ def main(saber_color: int = 0):
     # 11: swing
     while True:
         switch.update()
-        # startup
         if mode == 0:
+            # Turn on led strip power
+            external_power.value = True
+            # Turn on button
             set_rgb_led(COLORS[saber_color], red_led, green_led, blue_led)
+            # Play startup sequence
             play_wav(wav_list[0], audio, loop=False)
+            # Light up led strip
             for i in range(NUM_PIXELS):
                 pixels[i] = COLORS[saber_color]
+            # Start continuous sound
             play_wav(wav_list[1], audio, loop=True)
             mode = 1
-        # default
         elif mode == 1:
+            # Turn off saber if switch is pressed
             if switch.short_count == 1:
                 mode = 3
+            # Go to change color mode
             elif switch.long_press:
                 audio.stop()
                 play_wav(wav_list[19], audio, loop=True)
                 mode = 5
+            # Read accelerometer
             else:
                 mode, last_x, last_y, last_z = read_gesture(lis3dh, last_x, last_y, last_z)
-            # if lis3dh.tapped:
-            #      MODE = 10
-            # elif accel_total >= SWING_THRESHOLD:
-            #     MODE = 11
-        # clash or move
         elif mode == 10:
+            # Stop continuous sound
             audio.stop()
+            # Reproduce hit animation
             play_wav(wav_list[random.randint(3, 10)], audio, loop=False)
             while audio.playing:
                 pixels.fill(WHITE)
@@ -181,27 +185,32 @@ def main(saber_color: int = 0):
             play_wav(wav_list[1], audio, loop=True)
             mode = 1
         elif mode == 11:
+            # Stop continuous sound
             audio.stop()
+            # Reproduce clash animation
             play_wav(wav_list[random.randint(11, 18)], audio, loop=False)
             while audio.playing:
-                pixels.fill(COLORS[saber_color])
+                pass
+            # Return to normal work
             pixels.fill(COLORS[saber_color])
             play_wav(wav_list[1], audio, loop=True)
             mode = 1
-        # turn off
         elif mode == 3:
+            # Stop continuous sound
             audio.stop()
+            # Play shutdown animation
             play_wav(wav_list[2], audio, loop=False)
             for i in range(NUM_PIXELS):
                 pixels[NUM_PIXELS - 1 - i] = (0, 0, 0)
+            # Turn off power
             external_power.value = False
             mode = 4
-        # go to startup from off
         elif mode == 4:
+            # Check if we have to restart
             if switch.short_count >= 1:
-                external_power.value = True
                 mode = 0
             else:
+                # Play idle animation
                 if idling > 3000:
                     idling = 0
                 elif idling > 2900:
@@ -210,12 +219,13 @@ def main(saber_color: int = 0):
                     set_rgb_led((0,0,0), red_led, green_led, blue_led)
                 idling += 1
                 external_power.value = False
-        # change color
         elif mode == 5:
+            # Change color
             if switch.short_count >= 1:
-                saber_color = (saber_color + 1) % 6
+                saber_color = (saber_color + 1) % len(COLORS)
                 pixels.fill(COLORS[saber_color])
                 set_rgb_led(COLORS[saber_color], red_led, green_led, blue_led)
+            # Set color
             if switch.long_press:
                 play_wav(wav_list[1], audio, loop=True)
                 pixels.fill(COLORS[saber_color])
